@@ -1,18 +1,19 @@
 package cn.syj.emusearch.swing;
 
-import cn.syj.emusearch.model.EMU;
-import cn.syj.emusearch.url.URLFactory;
-import cn.syj.emusearch.util.HTMLUtil;
+import cn.syj.emusearch.Entity.EmuTrain;
+import cn.syj.emusearch.constant.Constants;
+import cn.syj.emusearch.service.EmuService;
+import cn.syj.emusearch.service.impl.RemoteEmuServiceImpl;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
- * @program: emusearch
- * @ClassName SearchSwing
- * @description:
- * @author: syj
- * @create: 2021-02-23 17:19
+ * @author syj
+ * 2021-02-23 17:19
  **/
 public class SearchSwing {
 
@@ -38,13 +39,15 @@ public class SearchSwing {
         JPanel plantPanel = createConditionPanel("Plant", plantComboBox);
         JPanel departmentPanel = createConditionPanel("Department", departmentTextField);
         JButton searchButton = new JButton("查询");
+        EmuService emuService = new RemoteEmuServiceImpl(Constants.PASS_SEARCH_URL, 20000);
         searchButton.addActionListener((e) -> {
-            String model = (String) modelComboBox.getSelectedItem();
-            String bureau = (String) bureauComboBox.getSelectedItem();
-            String plant = (String) plantComboBox.getSelectedItem();
-            String department = departmentTextField.getText();
-            java.util.List<EMU> emuList = HTMLUtil.getEMUListFromInternet(URLFactory.searchByModel(model));
-            emuList.removeIf(r -> !model.equals(r.getModel()) || !bureau.equals(r.getBureau()) || !plant.equals(r.getPlant()) || !department.equals(r.getDepartment()));
+            Map<String,Object> cm = new HashMap<>();
+            cm.put(Constants.MODEL, modelComboBox.getSelectedItem());
+            cm.put(Constants.BUREAU, bureauComboBox.getSelectedItem());
+            cm.put(Constants.PLANT, plantComboBox.getSelectedItem());
+            cm.put(Constants.DEPARTMENT, departmentTextField.getText());
+            List<EmuTrain> emus = emuService.searchEmuList(cm);
+            emus.forEach(System.out::println);
         });
         condition.add(modelPanel);
         condition.add(bureauPanel);
