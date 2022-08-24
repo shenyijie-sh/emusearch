@@ -57,13 +57,10 @@ public class SearchSwing {
 
     public static <C extends Component> JPanel createConditionPanel(String labelText, C component) {
         GridBagLayout gridBag = new GridBagLayout();
-        GridBagConstraints c = null;
         JPanel jPanel = new JPanel(gridBag);
         JLabel jLabel = new JLabel(labelText);
-        c = new GridBagConstraints();
-        gridBag.addLayoutComponent(jLabel, c);
-        c = new GridBagConstraints();
-        gridBag.addLayoutComponent(component, c);
+        gridBag.addLayoutComponent(jLabel, new GridBagConstraints());
+        gridBag.addLayoutComponent(component, new GridBagConstraints());
         jPanel.add(jLabel);
         jPanel.add(component);
         return jPanel;
