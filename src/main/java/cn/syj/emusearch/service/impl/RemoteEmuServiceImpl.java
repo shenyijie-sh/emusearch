@@ -1,8 +1,9 @@
 package cn.syj.emusearch.service.impl;
 
-import cn.syj.emusearch.Entity.EmuTrain;
+import cn.syj.emusearch.entity.EmuTrain;
 import cn.syj.emusearch.service.EmuService;
 import org.jsoup.Jsoup;
+import org.jsoup.internal.StringUtil;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.TextNode;
@@ -37,6 +38,11 @@ public class RemoteEmuServiceImpl implements EmuService {
 
     @Override
     public List<EmuTrain> searchEmuList(Map<String, Object> conditionMap) {
+        conditionMap.forEach((k, v) -> {
+            if (null != v && ("".equals(v) || String.valueOf(v).contains("全部"))) {
+                conditionMap.put(k, null);
+            }
+        });
         List<EmuTrain> emuList = Collections.emptyList();
         Object keyword = null;
         String type = null;
@@ -86,15 +92,15 @@ public class RemoteEmuServiceImpl implements EmuService {
                     Element emuInfo = trs.get(i);
                     Elements tds = emuInfo.getElementsByTag("td");
                     String model = tds.get(0).text();
-                    if (!isConditionMatched(model, _model)) continue;
+                    if (isConditionNotMatched(model, _model)) continue;
                     String number = tds.get(1).text();
-                    if (!isConditionMatched(number, _number)) continue;
+                    if (isConditionNotMatched(number, _number)) continue;
                     String bureau = tds.get(2).text();
-                    if (!isConditionMatched(bureau, _bureau)) continue;
+                    if (isConditionNotMatched(bureau, _bureau)) continue;
                     String department = tds.get(3).text();
-                    if (!isConditionMatched(department, _department)) continue;
+                    if (isConditionNotMatched(department, _department)) continue;
                     String plant = tds.get(4).text();
-                    if (!isConditionMatched(plant, _plant)) continue;
+                    if (isConditionNotMatched(plant, _plant)) continue;
                     String description = tds.get(5).text();
                     EmuTrain emu = new EmuTrain(model, number, bureau, department, plant, description);
                     emuList.add(emu);
@@ -103,13 +109,21 @@ public class RemoteEmuServiceImpl implements EmuService {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        conditionMap.forEach((k, v) -> System.out.println(k + ":" + v));
+        conditionMap.forEach((k, v) -> {
+            if (!StringUtil.isBlank((String) v)) {
+                System.out.println(k + ":" + v);
+            }
+        });
         System.out.println("total:" + emuList.size());
         return emuList;
     }
 
     public boolean isConditionMatched(String val, String condition) {
         return condition == null || "".equals(condition) || condition.equals(val);
+    }
+
+    public boolean isConditionNotMatched(String val, String condition) {
+        return !isConditionMatched(val, condition);
     }
 
 }

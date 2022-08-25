@@ -1,4 +1,4 @@
-package cn.syj.emusearch.Entity;
+package cn.syj.emusearch.entity;
 
 /**
  * @author syj

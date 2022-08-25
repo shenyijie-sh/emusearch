@@ -1,6 +1,6 @@
 package cn.syj.emusearch.service;
 
-import cn.syj.emusearch.Entity.EmuTrain;
+import cn.syj.emusearch.entity.EmuTrain;
 
 import java.util.List;
 import java.util.Map;
