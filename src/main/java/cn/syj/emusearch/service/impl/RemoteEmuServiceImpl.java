@@ -158,7 +158,12 @@ public class RemoteEmuServiceImpl implements EmuService {
 
     @Override
     public TableModel searchTableModel(Map<String, Object> conditionMap) {
-        DefaultTableModel tableModel = new DefaultTableModel(Constants.RESULT_TABLE_COLUMN_NAME, 0);
+        DefaultTableModel tableModel = new DefaultTableModel(Constants.RESULT_TABLE_COLUMN_NAME, 0){
+            @Override
+            public void setValueAt(Object aValue, int row, int column) {
+                //value cannot be reset
+            }
+        };
         //获取数据
         Document[] documents = getDocuments(conditionMap);
         //筛选条件数组 condition array

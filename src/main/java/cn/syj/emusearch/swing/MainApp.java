@@ -98,7 +98,7 @@ public class MainApp {
         Font f = new Font("Microsoft YaHei", Font.PLAIN, 12);
 
         //型号选择框
-        final JComboBox<String> modelComboBox = new JComboBox<>(new Vector<>(Lists.asList("全部",loadCfg("conf/emu-model.cfg","\r\n"))));
+        final JComboBox<String> modelComboBox = new JComboBox<>(new Vector<>(Lists.asList("全部", loadCfg("conf/emu-model.cfg", "\r\n"))));
         modelComboBox.setFont(f);
         //车组号输入框
         final JTextField numberTextField = new JTextField(4);
@@ -115,7 +115,7 @@ public class MainApp {
             }
         });
         //路局选择框
-        final JComboBox<String> bureauComboBox = new JComboBox<>(new Vector<>(Lists.asList("全部", loadCfg("conf/cr-bureau.cfg","\\|"))));
+        final JComboBox<String> bureauComboBox = new JComboBox<>(new Vector<>(Lists.asList("全部", loadCfg("conf/cr-bureau.cfg", "\\|"))));
         bureauComboBox.setFont(f);
         //主机厂选择框
         final JComboBox<String> plantComboBox = new JComboBox<>(manufacturerList);
@@ -142,13 +142,7 @@ public class MainApp {
         JTable rsTable = new JTable(
                 //初始表格
                 new DefaultTableModel(Constants.RESULT_TABLE_COLUMN_NAME, 0)
-        ) {
-            //设置单元格不可编辑
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
+        );
 
         rsTable.setFont(f);
         rsPanel.add(new JScrollPane(rsTable));
@@ -202,7 +196,7 @@ public class MainApp {
         return jPanel;
     }
 
-    private String[] loadCfg(String name,String regex) {
+    private String[] loadCfg(String name, String regex) {
         BufferedInputStream inputStream = null;
         try {
             inputStream = new BufferedInputStream(Objects.requireNonNull(this.getClass().getClassLoader().getResourceAsStream(name)));
