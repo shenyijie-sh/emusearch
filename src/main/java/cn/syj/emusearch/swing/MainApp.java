@@ -1,6 +1,7 @@
 package cn.syj.emusearch.swing;
 
 import cn.syj.emusearch.constant.Constants;
+import cn.syj.emusearch.entity.EmuTrain;
 import cn.syj.emusearch.service.EmuService;
 import cn.syj.emusearch.service.impl.RemoteEmuServiceImpl;
 
@@ -12,6 +13,8 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Vector;
 
 /**
  * @author syj
@@ -37,9 +40,10 @@ public class MainApp {
 
         JFrame.setDefaultLookAndFeelDecorated(false);
         frame = new JFrame();
-        frame.setTitle("EMU-SEARCH");
+        frame.setTitle("动车组配属查询");
         frame.setLayout(new BorderLayout());
-        frame.setSize(700, 700);    //设置窗口显示尺寸
+        frame.setBackground(Color.RED);
+        // frame.setSize(700, 700);    //设置窗口显示尺寸
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);    //置窗口是否可以关闭
         Container container = frame.getContentPane();    //获取当前窗口的内容窗格
         GridBagLayout cGridBagLayout = new GridBagLayout();
@@ -50,13 +54,21 @@ public class MainApp {
         //设置了列的宽度为容器宽度
         cGridBagLayout.columnWeights = new double[]{1.0};
         //第一行的高度占了容器的2份，第二行的高度占了容器的8份
-        cGridBagLayout.rowWeights = new double[]{0.1, 0.9};
+        cGridBagLayout.rowWeights = new double[]{0.15, 0.85};
         container.setLayout(cGridBagLayout);
 
+        ImageIcon icon = new ImageIcon(Objects.requireNonNull(this.getClass().getClassLoader().getResource("imgs/cr400_z.jpg")));
         Border greyLineBorder = BorderFactory.createLineBorder(Color.GRAY, 2);
 
         /*------------条件panel------------*/
-        JPanel cdPanel = new JPanel(new FlowLayout());
+        JPanel cdPanel = new JPanel(new FlowLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                //super.printComponent(g);
+                g.drawImage(icon.getImage(), 0, 0, getSize().width, getSize().height, this);
+            }
+        };
+        //cdPanel.setUI();
         cdPanel.setMaximumSize(new DimensionUIResource(frame.getWidth(), 200));
         cdPanel.setBorder(BorderFactory.createTitledBorder(greyLineBorder, "查询条件"));
         GridBagConstraints cdGbc = new GridBagConstraints();
@@ -130,10 +142,35 @@ public class MainApp {
         JButton searchButton = new JButton("查询");
         cdPanel.add(searchButton);
         EmuService emuService = new RemoteEmuServiceImpl(Constants.PASS_SEARCH_URL, 20000);
-        DefaultTableModel dtm = new DefaultTableModel(Constants.RESULT_TABLE_COLUMN_NAME, 0);
-        JTable table = new JTable(dtm);
-        rsPanel.add(new JScrollPane(table));
 
+        Vector<String> col = new Vector<>(6);
+        col.add("型号");
+        col.add("编号");
+        col.add("路局");
+        col.add("主机厂");
+        col.add("动车所");
+        col.add("备注");
+        DefaultTableModel dtm = new DefaultTableModel(col, 0);
+
+        //用于展示查询结果的表格
+        JTable rsTable = new JTable(dtm) {
+
+            //设置单元格不可编辑
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        Font f = new Font("Microsoft YaHei", Font.PLAIN, 12);
+        rsTable.setFont(f);
+        rsPanel.add(new JScrollPane(rsTable));
+
+        //设置居中于屏幕
+        frame.pack();
+        frame.setLocationRelativeTo(null);
+
+        /*---------事件---------*/
         searchButton.addActionListener((e) -> {
             Map<String, Object> cm = new HashMap<>();
             cm.put(Constants.MODEL, modelComboBox.getSelectedItem());
@@ -141,9 +178,9 @@ public class MainApp {
             cm.put(Constants.PLANT, plantComboBox.getSelectedItem());
             cm.put(Constants.DEPARTMENT, departmentTextField.getText());
             long start = System.currentTimeMillis();
-            table.setModel(emuService.searchTableModel(cm));
+            rsTable.setModel(emuService.searchTableModel(cm));
             System.out.println((System.currentTimeMillis() - start) + "ms");
-            rsTb.setTitle("查询结果共" + table.getRowCount() + "条");
+            rsTb.setTitle("查询结果共" + rsTable.getRowCount() + "条");
             rsPanel.updateUI();
         });
     }
@@ -155,8 +192,13 @@ public class MainApp {
     private <C extends Component> JPanel createConditionPanel(String labelText, C component) {
         GridBagLayout gridBag = new GridBagLayout();
         JPanel jPanel = new JPanel(gridBag);
+        jPanel.setOpaque(false);
         //jPanel.setBorder(BorderFactory.createLineBorder(Color.GRAY, 2));
         JLabel jLabel = new JLabel(labelText);
+        jLabel.setForeground(Color.WHITE);
+        Font font = jLabel.getFont();
+        jLabel.setFont(font.deriveFont(Font.BOLD));
+        jLabel.setOpaque(false);
         gridBag.addLayoutComponent(jLabel, new GridBagConstraints());
         gridBag.addLayoutComponent(component, new GridBagConstraints());
         jPanel.add(jLabel);

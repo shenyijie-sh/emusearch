@@ -1,5 +1,7 @@
 package cn.syj.emusearch.entity;
 
+import java.util.Vector;
+
 /**
  * @author syj
  **/
@@ -75,6 +77,17 @@ public class EmuTrain {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public Vector<Object> toVector() {
+        Vector<Object> v = new Vector<>();
+        v.add(this.getModel());
+        v.add(this.getNumber());
+        v.add(this.getBureau());
+        v.add(this.getPlant());
+        v.add(this.getDepartment());
+        v.add(this.getDescription());
+        return v;
     }
 
     @Override
