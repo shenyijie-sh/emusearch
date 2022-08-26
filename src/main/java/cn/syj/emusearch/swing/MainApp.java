@@ -1,20 +1,26 @@
 package cn.syj.emusearch.swing;
 
 import cn.syj.emusearch.constant.Constants;
-import cn.syj.emusearch.entity.EmuTrain;
 import cn.syj.emusearch.service.EmuService;
 import cn.syj.emusearch.service.impl.RemoteEmuServiceImpl;
+import com.google.common.collect.Lists;
+import org.jsoup.internal.StringUtil;
 
 import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.border.TitledBorder;
 import javax.swing.plaf.DimensionUIResource;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Document;
+import javax.swing.text.PlainDocument;
 import java.awt.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Vector;
+import java.io.BufferedInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.*;
+import java.util.List;
 
 /**
  * @author syj
@@ -54,7 +60,7 @@ public class MainApp {
         //设置了列的宽度为容器宽度
         cGridBagLayout.columnWeights = new double[]{1.0};
         //第一行的高度占了容器的2份，第二行的高度占了容器的8份
-        cGridBagLayout.rowWeights = new double[]{0.15, 0.85};
+        cGridBagLayout.rowWeights = new double[]{0.2, 0.85};
         container.setLayout(cGridBagLayout);
 
         ImageIcon icon = new ImageIcon(Objects.requireNonNull(this.getClass().getClassLoader().getResource("imgs/cr400_z.jpg")));
@@ -64,8 +70,8 @@ public class MainApp {
         JPanel cdPanel = new JPanel(new FlowLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
-                //super.printComponent(g);
-                g.drawImage(icon.getImage(), 0, 0, getSize().width, getSize().height, this);
+                Image image = icon.getImage();
+                g.drawImage(image, 0, 0, getSize().width, getSize().height, this);
             }
         };
         //cdPanel.setUI();
@@ -120,19 +126,41 @@ public class MainApp {
                 "CR400BF-GZ",
                 "CR400BF-J"
         };
-        String[] railwayBureauList = new String[]{"全部", "北京铁路局", "上海铁路局", "广州铁路集团"};
+
         String[] manufacturerList = new String[]{"全部", "BST", "南车青岛四方", "唐山轨道客车", "长春轨道客车"};
+
+        Font f = new Font("Microsoft YaHei", Font.PLAIN, 12);
 
         //型号选择框
         final JComboBox<String> modelComboBox = new JComboBox<>(typeList);
+        modelComboBox.setFont(f);
+        //车组号输入框
+        final JTextField numberTextField = new JTextField(4);
+        numberTextField.setFont(f);
+        numberTextField.setDocument(new PlainDocument() {
+            @Override
+            public void insertString(int offs, String str, AttributeSet a) throws BadLocationException {
+                //只能输入4个数字
+                if (StringUtil.isNumeric(str) && this.getLength() < 4) {
+                    super.insertString(offs, str, a);
+                } else {
+                    Toolkit.getDefaultToolkit().beep();
+                }
+            }
+        });
         //路局选择框
-        final JComboBox<String> bureauComboBox = new JComboBox<>(railwayBureauList);
+        final JComboBox<String> bureauComboBox = new JComboBox<>(new Vector<>(Lists.asList("全部", loadBureau())));
+        bureauComboBox.setFont(f);
         //主机厂选择框
         final JComboBox<String> plantComboBox = new JComboBox<>(manufacturerList);
+        plantComboBox.setFont(f);
         //动车所选择框
         final JTextField departmentTextField = new JTextField(10);
+        departmentTextField.setFont(f);
         JPanel modelPanel = createConditionPanel("型号", modelComboBox);
         cdPanel.add(modelPanel);
+        JPanel numberPanel = createConditionPanel("编号", numberTextField);
+        cdPanel.add(numberPanel);
         JPanel bureauPanel = createConditionPanel("路局", bureauComboBox);
         cdPanel.add(bureauPanel);
         JPanel plantPanel = createConditionPanel("主机厂", plantComboBox);
@@ -140,21 +168,15 @@ public class MainApp {
         JPanel departmentPanel = createConditionPanel("动车所", departmentTextField);
         cdPanel.add(departmentPanel);
         JButton searchButton = new JButton("查询");
+        searchButton.setFont(f);
         cdPanel.add(searchButton);
         EmuService emuService = new RemoteEmuServiceImpl(Constants.PASS_SEARCH_URL, 20000);
 
-        Vector<String> col = new Vector<>(6);
-        col.add("型号");
-        col.add("编号");
-        col.add("路局");
-        col.add("主机厂");
-        col.add("动车所");
-        col.add("备注");
-        DefaultTableModel dtm = new DefaultTableModel(col, 0);
-
         //用于展示查询结果的表格
-        JTable rsTable = new JTable(dtm) {
-
+        JTable rsTable = new JTable(
+                //初始表格
+                new DefaultTableModel(Constants.RESULT_TABLE_COLUMN_NAME, 0)
+        ) {
             //设置单元格不可编辑
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -162,17 +184,24 @@ public class MainApp {
             }
         };
 
-        Font f = new Font("Microsoft YaHei", Font.PLAIN, 12);
         rsTable.setFont(f);
         rsPanel.add(new JScrollPane(rsTable));
 
         //设置居中于屏幕
         frame.pack();
         frame.setLocationRelativeTo(null);
+        frame.setResizable(false);
 
         /*---------事件---------*/
         searchButton.addActionListener((e) -> {
+            //check
+            String number = numberTextField.getText();
+            if (number.length() != 0 && number.length() != 4) {
+                JOptionPane.showMessageDialog(this.frame, "车组号必须输入4位数字！", "警告", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
             Map<String, Object> cm = new HashMap<>();
+            cm.put(Constants.NUMBER, number);
             cm.put(Constants.MODEL, modelComboBox.getSelectedItem());
             cm.put(Constants.BUREAU, bureauComboBox.getSelectedItem());
             cm.put(Constants.PLANT, plantComboBox.getSelectedItem());
@@ -181,6 +210,7 @@ public class MainApp {
             rsTable.setModel(emuService.searchTableModel(cm));
             System.out.println((System.currentTimeMillis() - start) + "ms");
             rsTb.setTitle("查询结果共" + rsTable.getRowCount() + "条");
+            rsTable.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
             rsPanel.updateUI();
         });
     }
@@ -204,6 +234,29 @@ public class MainApp {
         jPanel.add(jLabel);
         jPanel.add(component);
         return jPanel;
+    }
+
+    private String[] loadBureau() {
+        BufferedInputStream inputStream = null;
+        try {
+            inputStream = new BufferedInputStream(Objects.requireNonNull(this.getClass().getClassLoader().getResourceAsStream("conf/cr-bureau.cfg")));
+            int a = inputStream.available();
+            byte[] buff = new byte[a];
+            a = inputStream.read(buff);
+            System.out.println("read " + a + " bytes...");
+            String s = new String(buff);
+            return s.split("\\|");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (null != inputStream) {
+                try {
+                    inputStream.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     public static void main(String[] args) {

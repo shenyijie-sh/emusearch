@@ -29,8 +29,8 @@ public class Constants {
         RESULT_TABLE_COLUMN_NAME.add("型号");
         RESULT_TABLE_COLUMN_NAME.add("编号");
         RESULT_TABLE_COLUMN_NAME.add("路局");
-        RESULT_TABLE_COLUMN_NAME.add("主机厂");
         RESULT_TABLE_COLUMN_NAME.add("动车所");
+        RESULT_TABLE_COLUMN_NAME.add("主机厂");
         RESULT_TABLE_COLUMN_NAME.add("备注");
     }
 

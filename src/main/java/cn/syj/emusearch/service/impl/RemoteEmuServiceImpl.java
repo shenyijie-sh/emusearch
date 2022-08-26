@@ -3,6 +3,10 @@ package cn.syj.emusearch.service.impl;
 import cn.syj.emusearch.constant.Constants;
 import cn.syj.emusearch.entity.EmuTrain;
 import cn.syj.emusearch.service.EmuService;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -13,7 +17,9 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
 import java.io.IOException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -24,6 +30,14 @@ import static cn.syj.emusearch.constant.Constants.*;
  * @author syj
  **/
 public class RemoteEmuServiceImpl implements EmuService {
+
+    //页面缓存
+    private static final Cache<URL, Document> cache = CacheBuilder.newBuilder()
+            .initialCapacity(500)
+            //读60秒后销毁
+            .expireAfterAccess(300, TimeUnit.SECONDS)
+            .removalListener((RemovalListener<URL, Document>) n -> System.out.println("Cache ---[key=" + n.getKey() + "]removed"))
+            .build();
 
     private final String remoteServerUrl;
 
@@ -57,16 +71,14 @@ public class RemoteEmuServiceImpl implements EmuService {
             }
         }
         if (null == keyword) return new Document[0];
-        String queryUrl = String.format(PASS_SEARCH_PARAM_FORMAT, this.remoteServerUrl, type, keyword, 1);
-        System.out.println("查询URL=> " + queryUrl);
         try {
-            Document doc = Jsoup.parse(new URL(queryUrl), this.timeoutMills);
+            Document doc = this.remoteLoadAndParse(type, keyword, 1);
             Iterator<TextNode> iterator = doc.getAllElements().textNodes().iterator();
             String sumText = null;
             while (iterator.hasNext() && sumText == null) {
                 String text;
                 if ((text = iterator.next().text()).contains("共有符合条件的记录"))
-                    sumText = text;
+                    System.out.println(sumText = text);
             }
             if (sumText == null) return new Document[]{};
             //总数
@@ -77,13 +89,36 @@ public class RemoteEmuServiceImpl implements EmuService {
             documents[0] = doc;
             //查询后面的几页
             for (int i = 2; i <= page; i++) {
-                documents[i - 1] = Jsoup.parse(new URL(String.format(PASS_SEARCH_PARAM_FORMAT, this.remoteServerUrl, type, keyword, i)), this.timeoutMills);
+                documents[i - 1] = this.remoteLoadAndParse(type, keyword, i);
             }
             return documents;
         } catch (IOException e) {
             e.printStackTrace();
             return new Document[0];
         }
+    }
+
+    /**
+     * 远程加载{@link Document}
+     *
+     * @param type    类型
+     * @param keyword 关键字
+     * @param page    页面号
+     * @return {@link Document}
+     * @throws IOException IO异常
+     */
+    private Document remoteLoadAndParse(String type, Object keyword, int page) throws IOException {
+        System.out.println("正在远程加载第" + page + "页");
+        URL url = new URL(String.format(PASS_SEARCH_PARAM_FORMAT, this.remoteServerUrl, type, URLEncoder.encode(String.valueOf(keyword), "utf-8"), page));
+        System.out.println("加载URL:" + url);
+        long startMs = System.currentTimeMillis();
+        Document document = cache.getIfPresent(url);
+        if (null == document) {
+            document = Jsoup.parse(url, this.timeoutMills);
+            cache.put(url, document);
+        }
+        System.out.println("加载用时:" + (System.currentTimeMillis() - startMs) + "毫秒");
+        return document;
     }
 
     @Override
@@ -143,8 +178,10 @@ public class RemoteEmuServiceImpl implements EmuService {
             for (int i = 1; i <= trs.size() - 1; i++) {
                 Element emuInfo = trs.get(i);
                 Elements tds = emuInfo.getElementsByTag("td");
+                //数据筛选
                 for (int j = 0; j <= 5; j++) {
                     if (this.isConditionNotMatched((tmp[j] = tds.get(j).text()), ca[j])) {
+                        //不符合条件的出去
                         continue outer;
                     }
                 }
