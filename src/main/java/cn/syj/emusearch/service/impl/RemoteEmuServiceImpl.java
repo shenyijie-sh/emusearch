@@ -1,18 +1,22 @@
 package cn.syj.emusearch.service.impl;
 
+import cn.syj.emusearch.constant.Constants;
 import cn.syj.emusearch.entity.EmuTrain;
 import cn.syj.emusearch.service.EmuService;
 import org.jsoup.Jsoup;
-import org.jsoup.internal.StringUtil;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
 import java.io.IOException;
 import java.net.URL;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static cn.syj.emusearch.constant.Constants.*;
 
@@ -36,14 +40,14 @@ public class RemoteEmuServiceImpl implements EmuService {
         this(remoteServerUrl, 10000);
     }
 
-    @Override
-    public List<EmuTrain> searchEmuList(Map<String, Object> conditionMap) {
+    private Document[] getDocuments(Map<String, Object> conditionMap) {
         conditionMap.forEach((k, v) -> {
+            System.out.println(k + "->" + v);
             if (null != v && ("".equals(v) || String.valueOf(v).contains("全部"))) {
                 conditionMap.put(k, null);
             }
         });
-        List<EmuTrain> emuList = Collections.emptyList();
+        Document[] documents;
         Object keyword = null;
         String type = null;
         for (String t : types) {
@@ -52,7 +56,7 @@ public class RemoteEmuServiceImpl implements EmuService {
                 break;
             }
         }
-        if (null == keyword) return emuList;
+        if (null == keyword) return new Document[0];
         String queryUrl = String.format(PASS_SEARCH_PARAM_FORMAT, this.remoteServerUrl, type, keyword, 1);
         System.out.println("查询URL=> " + queryUrl);
         try {
@@ -64,58 +68,94 @@ public class RemoteEmuServiceImpl implements EmuService {
                 if ((text = iterator.next().text()).contains("共有符合条件的记录"))
                     sumText = text;
             }
-            if (sumText == null) return emuList;
+            if (sumText == null) return new Document[]{};
             //总数
             int total = Integer.parseInt(Pattern.compile("[^0-9]").matcher(sumText).replaceAll("").trim());
             //分页
             int page = (int) Math.ceil((double) total / 50D);
-            Document[] documents = new Document[page];
+            documents = new Document[page];
             documents[0] = doc;
             //查询后面的几页
             for (int i = 2; i <= page; i++) {
                 documents[i - 1] = Jsoup.parse(new URL(String.format(PASS_SEARCH_PARAM_FORMAT, this.remoteServerUrl, type, keyword, i)), this.timeoutMills);
             }
-            emuList = new ArrayList<>(total);
-
-            //列出所有条件
-            String _model = (String) conditionMap.get(MODEL);
-            String _number = (String) conditionMap.get(NUMBER);
-            String _bureau = (String) conditionMap.get(BUREAU);
-            String _department = (String) conditionMap.get(DEPARTMENT);
-            String _plant = (String) conditionMap.get(PLANT);
-
-            for (Document document : documents) {
-                Elements tables = document.getElementsByTag("table");
-                Element tbl = tables.get(1);
-                Elements trs = tbl.getElementsByTag("tr");
-                for (int i = 1; i <= trs.size() - 1; i++) {
-                    Element emuInfo = trs.get(i);
-                    Elements tds = emuInfo.getElementsByTag("td");
-                    String model = tds.get(0).text();
-                    if (isConditionNotMatched(model, _model)) continue;
-                    String number = tds.get(1).text();
-                    if (isConditionNotMatched(number, _number)) continue;
-                    String bureau = tds.get(2).text();
-                    if (isConditionNotMatched(bureau, _bureau)) continue;
-                    String department = tds.get(3).text();
-                    if (isConditionNotMatched(department, _department)) continue;
-                    String plant = tds.get(4).text();
-                    if (isConditionNotMatched(plant, _plant)) continue;
-                    String description = tds.get(5).text();
-                    EmuTrain emu = new EmuTrain(model, number, bureau, department, plant, description);
-                    emuList.add(emu);
-                }
-            }
+            return documents;
         } catch (IOException e) {
             e.printStackTrace();
+            return new Document[0];
         }
-        conditionMap.forEach((k, v) -> {
-            if (!StringUtil.isBlank((String) v)) {
-                System.out.println(k + ":" + v);
+    }
+
+    @Override
+    public List<EmuTrain> searchList(Map<String, Object> conditionMap) {
+        Document[] documents = this.getDocuments(conditionMap);
+        List<EmuTrain> emuList = new ArrayList<>(documents.length);
+        //列出所有条件
+        String _model = (String) conditionMap.get(MODEL);
+        String _number = (String) conditionMap.get(NUMBER);
+        String _bureau = (String) conditionMap.get(BUREAU);
+        String _department = (String) conditionMap.get(DEPARTMENT);
+        String _plant = (String) conditionMap.get(PLANT);
+        for (Document document : documents) {
+            Elements tables = document.getElementsByTag("table");
+            Element tbl = tables.get(1);
+            Elements trs = tbl.getElementsByTag("tr");
+            for (int i = 1; i <= trs.size() - 1; i++) {
+                Element emuInfo = trs.get(i);
+                Elements tds = emuInfo.getElementsByTag("td");
+                String model = tds.get(0).text();
+                if (isConditionNotMatched(model, _model)) continue;
+                String number = tds.get(1).text();
+                if (isConditionNotMatched(number, _number)) continue;
+                String bureau = tds.get(2).text();
+                if (isConditionNotMatched(bureau, _bureau)) continue;
+                String department = tds.get(3).text();
+                if (isConditionNotMatched(department, _department)) continue;
+                String plant = tds.get(4).text();
+                if (isConditionNotMatched(plant, _plant)) continue;
+                String description = tds.get(5).text();
+                EmuTrain emu = new EmuTrain(model, number, bureau, department, plant, description);
+                emuList.add(emu);
             }
-        });
-        System.out.println("total:" + emuList.size());
+        }
         return emuList;
+    }
+
+    @Override
+    public TableModel searchTableModel(Map<String, Object> conditionMap) {
+        DefaultTableModel tableModel = new DefaultTableModel(Constants.RESULT_TABLE_COLUMN_NAME, 0);
+        //获取数据
+        Document[] documents = getDocuments(conditionMap);
+        //筛选条件数组 condition array
+        String[] ca = new String[6];
+        ca[0] = (String) conditionMap.get(MODEL);
+        ca[1] = (String) conditionMap.get(NUMBER);
+        ca[2] = (String) conditionMap.get(BUREAU);
+        ca[3] = (String) conditionMap.get(DEPARTMENT);
+        ca[4] = (String) conditionMap.get(PLANT);
+        //临时数据存放数组
+        String[] tmp = new String[6];
+        for (Document document : documents) {
+            Elements tables = document.getElementsByTag("table");
+            Element tbl = tables.get(1);
+            Elements trs = tbl.getElementsByTag("tr");
+            outer:
+            for (int i = 1; i <= trs.size() - 1; i++) {
+                Element emuInfo = trs.get(i);
+                Elements tds = emuInfo.getElementsByTag("td");
+                for (int j = 0; j <= 5; j++) {
+                    if (this.isConditionNotMatched((tmp[j] = tds.get(j).text()), ca[j])) {
+                        continue outer;
+                    }
+                }
+                //把临时存放区的数据转到vector中
+                Collection<String> collect = Arrays.stream(tmp).collect(Collectors.toCollection(
+                        (Supplier<Collection<String>>) () -> new Vector<>(6))
+                );
+                tableModel.addRow((Vector<String>) collect);
+            }
+        }
+        return tableModel;
     }
 
     public boolean isConditionMatched(String val, String condition) {

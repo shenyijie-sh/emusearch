@@ -1,6 +1,5 @@
 package cn.syj.emusearch.swing;
 
-import cn.syj.emusearch.entity.EmuTrain;
 import cn.syj.emusearch.constant.Constants;
 import cn.syj.emusearch.service.EmuService;
 import cn.syj.emusearch.service.impl.RemoteEmuServiceImpl;
@@ -12,9 +11,7 @@ import javax.swing.plaf.DimensionUIResource;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Vector;
 
 /**
  * @author syj
@@ -123,20 +120,17 @@ public class MainApp {
         //动车所选择框
         final JTextField departmentTextField = new JTextField(10);
         JPanel modelPanel = createConditionPanel("型号", modelComboBox);
+        cdPanel.add(modelPanel);
         JPanel bureauPanel = createConditionPanel("路局", bureauComboBox);
+        cdPanel.add(bureauPanel);
         JPanel plantPanel = createConditionPanel("主机厂", plantComboBox);
+        cdPanel.add(plantPanel);
         JPanel departmentPanel = createConditionPanel("动车所", departmentTextField);
+        cdPanel.add(departmentPanel);
         JButton searchButton = new JButton("查询");
+        cdPanel.add(searchButton);
         EmuService emuService = new RemoteEmuServiceImpl(Constants.PASS_SEARCH_URL, 20000);
-
-        Vector<String> col = new Vector<>();
-        col.add("型号");
-        col.add("编号");
-        col.add("路局");
-        col.add("主机厂");
-        col.add("动车所");
-        col.add("备注");
-        DefaultTableModel dtm = new DefaultTableModel(col, 0);
+        DefaultTableModel dtm = new DefaultTableModel(Constants.RESULT_TABLE_COLUMN_NAME, 0);
         JTable table = new JTable(dtm);
         rsPanel.add(new JScrollPane(table));
 
@@ -146,42 +140,19 @@ public class MainApp {
             cm.put(Constants.BUREAU, bureauComboBox.getSelectedItem());
             cm.put(Constants.PLANT, plantComboBox.getSelectedItem());
             cm.put(Constants.DEPARTMENT, departmentTextField.getText());
-            List<EmuTrain> emus = emuService.searchEmuList(cm);
-            // JOptionPane.showMessageDialog(frame, "共" + emus.size() + "条结果");
-            emus.forEach(System.out::println);
-            Vector<Vector<String>> ev = new Vector<>(emus.size());
-            emus.forEach(s -> {
-                Vector<String> v = new Vector<>();
-                v.add(s.getModel());
-                v.add(s.getNumber());
-                v.add(s.getBureau());
-                v.add(s.getPlant());
-                v.add(s.getDepartment());
-                v.add(s.getDescription());
-                ev.add(v);
-            });
             long start = System.currentTimeMillis();
-            DefaultTableModel d2 = new DefaultTableModel(ev, col);
-            table.setModel(d2);
+            table.setModel(emuService.searchTableModel(cm));
             System.out.println((System.currentTimeMillis() - start) + "ms");
-            rsTb.setTitle("查询结果共" + emus.size() + "条");
+            rsTb.setTitle("查询结果共" + table.getRowCount() + "条");
             rsPanel.updateUI();
         });
-        //条件面板
-
-        cdPanel.add(modelPanel);
-        cdPanel.add(bureauPanel);
-        cdPanel.add(plantPanel);
-        cdPanel.add(departmentPanel);
-        cdPanel.add(searchButton);
-
     }
 
     private void setVisible() {
         this.frame.setVisible(true);
     }
 
-    public static <C extends Component> JPanel createConditionPanel(String labelText, C component) {
+    private <C extends Component> JPanel createConditionPanel(String labelText, C component) {
         GridBagLayout gridBag = new GridBagLayout();
         JPanel jPanel = new JPanel(gridBag);
         //jPanel.setBorder(BorderFactory.createLineBorder(Color.GRAY, 2));
