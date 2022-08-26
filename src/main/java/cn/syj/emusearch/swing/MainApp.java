@@ -93,46 +93,12 @@ public class MainApp {
         rsGbc.gridx = 0;
         rsGbc.gridy = 1;
         container.add(rsPanel, rsGbc);
-
-        String[] typeList = new String[]{
-                "全部",
-                "CRH380A",
-                "CRH380AL",
-                "CRH380AN",
-                "CRH380AM",
-                "CRH380AJ",
-                "CRH380B",
-                "CRH380BL",
-                "CRH380BG",
-                "CRH380BJ",
-                "CRH380BJ-A",
-                "CRH380CL",
-                "CRH380D",
-                "CR400AF",
-                "CR400AF-A",
-                "CR400AF-B",
-                "CR400AF-C",
-                "CR400AF-G",
-                "CR400AF-Z",
-                "CR400AF-BZ",
-                "CR400BF",
-                "CR400BF-A",
-                "CR400BF-B",
-                "CR400BF-C",
-                "CR400BF-G",
-                "CR400BF-Z",
-                "CR400BF-AZ",
-                "CR400BF-BZ",
-                "CR400BF-GZ",
-                "CR400BF-J"
-        };
-
         String[] manufacturerList = new String[]{"全部", "BST", "南车青岛四方", "唐山轨道客车", "长春轨道客车"};
 
         Font f = new Font("Microsoft YaHei", Font.PLAIN, 12);
 
         //型号选择框
-        final JComboBox<String> modelComboBox = new JComboBox<>(typeList);
+        final JComboBox<String> modelComboBox = new JComboBox<>(new Vector<>(Lists.asList("全部",loadCfg("conf/emu-model.cfg","\r\n"))));
         modelComboBox.setFont(f);
         //车组号输入框
         final JTextField numberTextField = new JTextField(4);
@@ -149,7 +115,7 @@ public class MainApp {
             }
         });
         //路局选择框
-        final JComboBox<String> bureauComboBox = new JComboBox<>(new Vector<>(Lists.asList("全部", loadBureau())));
+        final JComboBox<String> bureauComboBox = new JComboBox<>(new Vector<>(Lists.asList("全部", loadCfg("conf/cr-bureau.cfg","\\|"))));
         bureauComboBox.setFont(f);
         //主机厂选择框
         final JComboBox<String> plantComboBox = new JComboBox<>(manufacturerList);
@@ -236,16 +202,16 @@ public class MainApp {
         return jPanel;
     }
 
-    private String[] loadBureau() {
+    private String[] loadCfg(String name,String regex) {
         BufferedInputStream inputStream = null;
         try {
-            inputStream = new BufferedInputStream(Objects.requireNonNull(this.getClass().getClassLoader().getResourceAsStream("conf/cr-bureau.cfg")));
+            inputStream = new BufferedInputStream(Objects.requireNonNull(this.getClass().getClassLoader().getResourceAsStream(name)));
             int a = inputStream.available();
             byte[] buff = new byte[a];
             a = inputStream.read(buff);
             System.out.println("read " + a + " bytes...");
             String s = new String(buff);
-            return s.split("\\|");
+            return s.split(regex);
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {

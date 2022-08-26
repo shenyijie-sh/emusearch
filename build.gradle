@@ -2,6 +2,18 @@ plugins {
     id 'java'
 }
 
+jar {
+    manifestContentCharset('utf-8')
+    metadataCharset('utf-8')
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+        configurations.runtime.collect { zipTree(it) }
+    }
+    manifest {
+        attributes 'Main-Class': 'cn.syj.emusearch.swing.MainApp'
+    }
+}
+
 group 'cn.syj'
 version '1.0-SNAPSHOT'
 
