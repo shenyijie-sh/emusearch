@@ -6,7 +6,6 @@ import cn.syj.emusearch.service.EmuService;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -32,11 +31,11 @@ import static cn.syj.emusearch.constant.Constants.*;
 public class RemoteEmuServiceImpl implements EmuService {
 
     //页面缓存
-    private static final Cache<URL, Document> cache = CacheBuilder.newBuilder()
+    private static final Cache<String, Document> cache = CacheBuilder.newBuilder()
             .initialCapacity(500)
             //读60秒后销毁
             .expireAfterAccess(300, TimeUnit.SECONDS)
-            .removalListener((RemovalListener<URL, Document>) n -> System.out.println("Cache ---[key=" + n.getKey() + "]removed"))
+            .removalListener((RemovalListener<String, Document>) n -> System.out.println("Cache ---[key=" + n.getKey() + "]removed"))
             .build();
 
     private final String remoteServerUrl;
@@ -64,10 +63,21 @@ public class RemoteEmuServiceImpl implements EmuService {
         Document[] documents;
         Object keyword = null;
         String type = null;
+        //优先使用缓存
         for (String t : types) {
-            if (null != (keyword = conditionMap.get(t))) {
+            String key = String.format(PASS_SEARCH_PARAM_FORMAT, this.remoteServerUrl, t, keyword = conditionMap.get(t), 1);
+            if (null != cache.getIfPresent(key)) {
                 type = t;
                 break;
+            }
+        }
+        //没有缓存则远程获取
+        if (null == type){
+            for (String t : types) {
+                if (null != (keyword = conditionMap.get(t))){
+                    type = t;
+                    break;
+                }
             }
         }
         if (null == keyword) return new Document[0];
@@ -109,15 +119,16 @@ public class RemoteEmuServiceImpl implements EmuService {
      */
     private Document remoteLoadAndParse(String type, Object keyword, int page) throws IOException {
         System.out.println("正在远程加载第" + page + "页");
-        URL url = new URL(String.format(PASS_SEARCH_PARAM_FORMAT, this.remoteServerUrl, type, URLEncoder.encode(String.valueOf(keyword), "utf-8"), page));
-        System.out.println("加载URL:" + url);
-        long startMs = System.currentTimeMillis();
-        Document document = cache.getIfPresent(url);
-        if (null == document) {
+        String key = String.format(PASS_SEARCH_PARAM_FORMAT,this.remoteServerUrl,type,keyword,page);
+        Document document = cache.getIfPresent(key);
+        if (null == document){
+            URL url = new URL(String.format(PASS_SEARCH_PARAM_FORMAT, this.remoteServerUrl, type, URLEncoder.encode(String.valueOf(keyword), "utf-8"), page));
+            System.out.println("加载URL:" + url);
+            long startMs = System.currentTimeMillis();
             document = Jsoup.parse(url, this.timeoutMills);
-            cache.put(url, document);
+            System.out.println("加载用时:" + (System.currentTimeMillis() - startMs) + "毫秒");
+            cache.put(key, document);
         }
-        System.out.println("加载用时:" + (System.currentTimeMillis() - startMs) + "毫秒");
         return document;
     }
 
@@ -166,6 +177,7 @@ public class RemoteEmuServiceImpl implements EmuService {
         };
         //获取数据
         Document[] documents = getDocuments(conditionMap);
+        if (documents.length == 0) return tableModel;
         //筛选条件数组 condition array
         String[] ca = new String[6];
         ca[0] = (String) conditionMap.get(MODEL);
@@ -198,6 +210,11 @@ public class RemoteEmuServiceImpl implements EmuService {
             }
         }
         return tableModel;
+    }
+
+    @Override
+    public void clearCache() {
+        cache.invalidateAll();
     }
 
     public boolean isConditionMatched(String val, String condition) {

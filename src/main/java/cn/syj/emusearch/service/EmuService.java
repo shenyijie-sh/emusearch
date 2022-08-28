@@ -27,4 +27,6 @@ public interface EmuService {
      */
     TableModel searchTableModel(Map<String, Object> conditionMap);
 
+    void clearCache();
+
 }

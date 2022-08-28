@@ -34,6 +34,8 @@ public class EMUSearchPanel extends JPanel {
 
     private final EmuService emuService = new RemoteEmuServiceImpl(Constants.PASS_SEARCH_URL);
 
+    private String[] tmp = new String[6];
+
     public EMUSearchPanel() {
         initialize();
     }
@@ -92,7 +94,9 @@ public class EMUSearchPanel extends JPanel {
         JButton searchButton = new JButton("查询");
         searchButton.setFont( new Font("黑体",Font.BOLD,25));
         Insets insets = new Insets(3, 3, 3, 3);
-
+        JButton clearCacheButton = new JButton("清理缓存");
+        clearCacheButton.setFont(font);
+        //把查询条件放入面板布局中
         JLabel modelLabel = new JLabel("型号");
         modelLabel.setFont(font);
         panel.add(modelLabel, new GBC(0, 0).setAnchor(GridBagConstraints.EAST).setInsets(insets));
@@ -113,27 +117,40 @@ public class EMUSearchPanel extends JPanel {
         departmentLabel.setFont(font);
         panel.add(departmentLabel, new GBC(0, 2).setAnchor(GridBagConstraints.EAST).setInsets(insets));
         panel.add(departmentTextField, new GBC(1, 2).setFill(GridBagConstraints.BOTH).setInsets(insets));
-        panel.add(searchButton, new GBC(4, 0, 1, 3).setInsets(0, 10, 0, 0).setFill(GridBagConstraints.BOTH));
-
+        panel.add(searchButton, new GBC(4, 0, 1, 2).setInsets(0, 10, 0, 0).setFill(GridBagConstraints.BOTH));
+        panel.add(clearCacheButton,new GBC(4,2).setInsets(0, 10, 0, 0).setFill(GridBagConstraints.BOTH));
         searchButton.addActionListener(e -> {
             //check
-            String number = numberTextField.getText();
-            if (number.length() != 0 && number.length() != 4) {
-                JOptionPane.showMessageDialog(this, "车组号必须输入4位数字！", "警告", JOptionPane.WARNING_MESSAGE);
-                return;
+            clearCacheButton.setEnabled(false);
+            try {
+                String number = numberTextField.getText();
+                if (number.length() != 0 && number.length() != 4) {
+                    JOptionPane.showMessageDialog(this, "车组号必须输入4位数字！", "警告", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                Map<String, Object> cm = new HashMap<>();
+                cm.put(Constants.NUMBER, number);
+                cm.put(Constants.MODEL, modelComboBox.getSelectedItem());
+                cm.put(Constants.BUREAU, bureauComboBox.getSelectedItem());
+                cm.put(Constants.PLANT, plantComboBox.getSelectedItem());
+                cm.put(Constants.DEPARTMENT, departmentTextField.getText());
+                long start = System.currentTimeMillis();
+                resultTable.setModel(emuService.searchTableModel(cm));
+                System.out.println((System.currentTimeMillis() - start) + "ms");
+                ((TitledBorder) ((JPanel) this.getComponent(1)).getBorder()).setTitle("查询结果共" + resultTable.getRowCount() + "条");
+                resultTable.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
+                this.updateUI();
+            }finally {
+                clearCacheButton.setEnabled(true);
             }
-            Map<String, Object> cm = new HashMap<>();
-            cm.put(Constants.NUMBER, number);
-            cm.put(Constants.MODEL, modelComboBox.getSelectedItem());
-            cm.put(Constants.BUREAU, bureauComboBox.getSelectedItem());
-            cm.put(Constants.PLANT, plantComboBox.getSelectedItem());
-            cm.put(Constants.DEPARTMENT, departmentTextField.getText());
-            long start = System.currentTimeMillis();
-            resultTable.setModel(emuService.searchTableModel(cm));
-            System.out.println((System.currentTimeMillis() - start) + "ms");
-            ((TitledBorder) ((JPanel) this.getComponent(1)).getBorder()).setTitle("查询结果共" + resultTable.getRowCount() + "条");
-            resultTable.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
-            this.updateUI();
+        });
+
+        clearCacheButton.addActionListener(e->{
+            int confirm = JOptionPane.showConfirmDialog(this, "确认要清理缓存吗？", "警告", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (confirm == JOptionPane.OK_OPTION) {
+                this.emuService.clearCache();
+                JOptionPane.showMessageDialog(this, "缓存清理完毕", "通知", JOptionPane.INFORMATION_MESSAGE);
+            }
         });
 
         return panel;

@@ -5,7 +5,6 @@ import cn.syj.emusearch.util.Utils;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.Objects;
 
 /**
  * @author syj
