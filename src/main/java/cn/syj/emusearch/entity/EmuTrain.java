@@ -1,5 +1,6 @@
 package cn.syj.emusearch.entity;
 
+import java.util.List;
 import java.util.Vector;
 
 /**
@@ -29,6 +30,17 @@ public class EmuTrain {
         this.department = department;
         this.plant = plant;
         this.description = description;
+    }
+
+    public EmuTrain(List<?> list) {
+        if (list == null || list.size() < 6)
+            throw new RuntimeException();
+        this.model = (String) list.get(0);
+        this.number = (String) list.get(1);
+        this.bureau = (String) list.get(2);
+        this.department = (String) list.get(3);
+        this.plant = (String) list.get(4);
+        this.description = (String) list.get(5);
     }
 
     public String getModel() {

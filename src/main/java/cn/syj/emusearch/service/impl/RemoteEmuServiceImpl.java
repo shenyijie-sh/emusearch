@@ -6,6 +6,8 @@ import cn.syj.emusearch.service.EmuService;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
+import com.google.common.collect.Interner;
+import com.google.common.collect.Interners;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -19,9 +21,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static cn.syj.emusearch.constant.Constants.*;
 
@@ -31,12 +31,14 @@ import static cn.syj.emusearch.constant.Constants.*;
 public class RemoteEmuServiceImpl implements EmuService {
 
     //页面缓存
-    private static final Cache<String, Document> cache = CacheBuilder.newBuilder()
+    private static final Cache<String, DetailPage> cache = CacheBuilder.newBuilder()
             .initialCapacity(500)
             //读60秒后销毁
             .expireAfterAccess(300, TimeUnit.SECONDS)
-            .removalListener((RemovalListener<String, Document>) n -> System.out.println("Cache ---[key=" + n.getKey() + "]removed"))
+            .removalListener((RemovalListener<String, DetailPage>) n -> System.out.println("Cache ---[key=" + n.getKey() + "]removed"))
             .build();
+
+    private static final Interner<String> strWeekIntern = Interners.newWeakInterner();
 
     private final String remoteServerUrl;
 
@@ -53,14 +55,14 @@ public class RemoteEmuServiceImpl implements EmuService {
         this(remoteServerUrl, 10000);
     }
 
-    private Document[] getDocuments(Map<String, Object> conditionMap) {
+    private DetailPage[] getDetailPages(Map<String, Object> conditionMap) {
         conditionMap.forEach((k, v) -> {
             System.out.println(k + "->" + v);
             if (null != v && ("".equals(v) || String.valueOf(v).contains("全部"))) {
                 conditionMap.put(k, null);
             }
         });
-        Document[] documents;
+        DetailPage[] ps;
         Object keyword = null;
         String type = null;
         //优先使用缓存
@@ -72,112 +74,122 @@ public class RemoteEmuServiceImpl implements EmuService {
             }
         }
         //没有缓存则远程获取
-        if (null == type){
+        if (null == type) {
             for (String t : types) {
-                if (null != (keyword = conditionMap.get(t))){
+                if (null != (keyword = conditionMap.get(t))) {
                     type = t;
                     break;
                 }
             }
         }
-        if (null == keyword) return new Document[0];
+        if (null == keyword) return new DetailPage[0];
         try {
-            Document doc = this.remoteLoadAndParse(type, keyword, 1);
-            Iterator<TextNode> iterator = doc.getAllElements().textNodes().iterator();
-            String sumText = null;
-            while (iterator.hasNext() && sumText == null) {
-                String text;
-                if ((text = iterator.next().text()).contains("共有符合条件的记录"))
-                    System.out.println(sumText = text);
-            }
-            if (sumText == null) return new Document[]{};
+            DetailPage p = this.remoteLoadAndParse(type, keyword, 1);
             //总数
-            int total = Integer.parseInt(Pattern.compile("[^0-9]").matcher(sumText).replaceAll("").trim());
+            int total = p.total;
             //分页
             int page = (int) Math.ceil((double) total / 50D);
-            documents = new Document[page];
-            documents[0] = doc;
+            ps = new DetailPage[page];
+            ps[0] = p;
             //查询后面的几页
             for (int i = 2; i <= page; i++) {
-                documents[i - 1] = this.remoteLoadAndParse(type, keyword, i);
+                ps[i - 1] = this.remoteLoadAndParse(type, keyword, i);
             }
-            return documents;
+            return ps;
         } catch (IOException e) {
             e.printStackTrace();
-            return new Document[0];
+            return new DetailPage[0];
+        }
+    }
+
+
+    private static class DetailPage {
+
+        int total;
+
+        List<Vector<String>> content;
+
+        public DetailPage(int total, List<Vector<String>> content) {
+            this.total = total;
+            this.content = content;
         }
     }
 
     /**
-     * 远程加载{@link Document}
+     * 远程加载{@link DetailPage}
      *
      * @param type    类型
      * @param keyword 关键字
      * @param page    页面号
-     * @return {@link Document}
+     * @return {@link DetailPage}
      * @throws IOException IO异常
      */
-    private Document remoteLoadAndParse(String type, Object keyword, int page) throws IOException {
-        System.out.println("正在远程加载第" + page + "页");
-        String key = String.format(PASS_SEARCH_PARAM_FORMAT,this.remoteServerUrl,type,keyword,page);
-        Document document = cache.getIfPresent(key);
-        if (null == document){
+    private DetailPage remoteLoadAndParse(String type, Object keyword, int page) throws IOException {
+        String key = String.format("__%s_%s_%d__", type, keyword, page);
+        DetailPage p = cache.getIfPresent(key);
+        if (null == p) {
+            System.out.println("正在远程加载第" + page + "页");
             URL url = new URL(String.format(PASS_SEARCH_PARAM_FORMAT, this.remoteServerUrl, type, URLEncoder.encode(String.valueOf(keyword), "utf-8"), page));
             System.out.println("加载URL:" + url);
             long startMs = System.currentTimeMillis();
-            document = Jsoup.parse(url, this.timeoutMills);
-            System.out.println("加载用时:" + (System.currentTimeMillis() - startMs) + "毫秒");
-            cache.put(key, document);
+            Document document = Jsoup.parse(url, this.timeoutMills);
+            System.out.println("加载用时:" + -(startMs - (startMs = System.currentTimeMillis())) + "毫秒");
+            p = this.parse2Page(document);
+            System.out.println("转换用时:" + (System.currentTimeMillis() - startMs) + "毫秒");
+            cache.put(key, p);
         }
-        return document;
+        return p;
+    }
+
+    private DetailPage parse2Page(Document document) {
+        Iterator<TextNode> iterator = document.getAllElements().textNodes().iterator();
+        String sumText = null;
+        while (iterator.hasNext() && sumText == null) {
+            String text;
+            if ((text = iterator.next().text()).contains("共有符合条件的记录"))
+                System.out.println(sumText = text);
+        }
+        if (sumText == null) return new DetailPage(0, new ArrayList<>());
+        //总数
+        int total = Integer.parseInt(Pattern.compile("[^0-9]").matcher(sumText).replaceAll("").trim());
+        Elements tables = document.getElementsByTag("table");
+        Element tbl = tables.get(1);
+        Elements trs = tbl.getElementsByTag("tr");
+        List<Vector<String>> list = new ArrayList<>();
+        for (int i = 1; i <= trs.size() - 1; i++) {
+            Element emuInfo = trs.get(i);
+            Elements tds = emuInfo.getElementsByTag("td");
+            Vector<String> vector = new Vector<>(6);
+            for (int j = 0; j <= 5; j++) {
+                vector.add(strWeekIntern.intern(tds.get(j).text()));
+                tds.get(j).text();
+            }
+            list.add(vector);
+        }
+        return new DetailPage(total, list);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public List<EmuTrain> searchList(Map<String, Object> conditionMap) {
-        Document[] documents = this.getDocuments(conditionMap);
-        List<EmuTrain> emuList = new ArrayList<>(documents.length);
-        //列出所有条件
-        String _model = (String) conditionMap.get(MODEL);
-        String _number = (String) conditionMap.get(NUMBER);
-        String _bureau = (String) conditionMap.get(BUREAU);
-        String _department = (String) conditionMap.get(DEPARTMENT);
-        String _plant = (String) conditionMap.get(PLANT);
-        for (Document document : documents) {
-            Elements tables = document.getElementsByTag("table");
-            Element tbl = tables.get(1);
-            Elements trs = tbl.getElementsByTag("tr");
-            for (int i = 1; i <= trs.size() - 1; i++) {
-                Element emuInfo = trs.get(i);
-                Elements tds = emuInfo.getElementsByTag("td");
-                String model = tds.get(0).text();
-                if (isConditionNotMatched(model, _model)) continue;
-                String number = tds.get(1).text();
-                if (isConditionNotMatched(number, _number)) continue;
-                String bureau = tds.get(2).text();
-                if (isConditionNotMatched(bureau, _bureau)) continue;
-                String department = tds.get(3).text();
-                if (isConditionNotMatched(department, _department)) continue;
-                String plant = tds.get(4).text();
-                if (isConditionNotMatched(plant, _plant)) continue;
-                String description = tds.get(5).text();
-                EmuTrain emu = new EmuTrain(model, number, bureau, department, plant, description);
-                emuList.add(emu);
-            }
-        }
+        DefaultTableModel tableModel = (DefaultTableModel) this.searchTableModel(conditionMap);
+        Vector<?> dataVector = tableModel.getDataVector();
+        List<EmuTrain> emuList = new ArrayList<>();
+        dataVector.forEach(dv -> emuList.add(new EmuTrain((Vector<String>) dv)));
         return emuList;
     }
 
     @Override
     public TableModel searchTableModel(Map<String, Object> conditionMap) {
-        DefaultTableModel tableModel = new DefaultTableModel(Constants.RESULT_TABLE_COLUMN_NAME, 0){
+        DefaultTableModel tableModel = new DefaultTableModel(Constants.RESULT_TABLE_COLUMN_NAME, 0) {
             @Override
             public void setValueAt(Object aValue, int row, int column) {
                 //value cannot be reset
             }
         };
         //获取数据
-        Document[] documents = getDocuments(conditionMap);
-        if (documents.length == 0) return tableModel;
+        DetailPage[] pages = getDetailPages(conditionMap);
+        if (pages.length == 0) return tableModel;
         //筛选条件数组 condition array
         String[] ca = new String[6];
         ca[0] = (String) conditionMap.get(MODEL);
@@ -185,28 +197,16 @@ public class RemoteEmuServiceImpl implements EmuService {
         ca[2] = (String) conditionMap.get(BUREAU);
         ca[3] = (String) conditionMap.get(DEPARTMENT);
         ca[4] = (String) conditionMap.get(PLANT);
-        //临时数据存放数组
-        String[] tmp = new String[6];
-        for (Document document : documents) {
-            Elements tables = document.getElementsByTag("table");
-            Element tbl = tables.get(1);
-            Elements trs = tbl.getElementsByTag("tr");
+        for (DetailPage detailPage : pages) {
+            List<Vector<String>> content = detailPage.content;
             outer:
-            for (int i = 1; i <= trs.size() - 1; i++) {
-                Element emuInfo = trs.get(i);
-                Elements tds = emuInfo.getElementsByTag("td");
-                //数据筛选
-                for (int j = 0; j <= 5; j++) {
-                    if (this.isConditionNotMatched((tmp[j] = tds.get(j).text()), ca[j])) {
-                        //不符合条件的出去
+            for (Vector<String> vector : content) {
+                for (int i = 0; i < ca.length; i++) {
+                    if (this.isConditionNotMatched(vector.get(i), ca[i])) {
                         continue outer;
                     }
                 }
-                //把临时存放区的数据转到vector中
-                Collection<String> collect = Arrays.stream(tmp).collect(Collectors.toCollection(
-                        (Supplier<Collection<String>>) () -> new Vector<>(6))
-                );
-                tableModel.addRow((Vector<String>) collect);
+                tableModel.addRow(vector);
             }
         }
         return tableModel;
