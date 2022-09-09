@@ -13,10 +13,14 @@ import javax.swing.border.TitledBorder;
 import javax.swing.plaf.TableHeaderUI;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
+import javax.swing.table.TableCellRenderer;
+import javax.swing.table.TableModel;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.PlainDocument;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Vector;
@@ -35,6 +39,8 @@ public class EMUSearchPanel extends JPanel {
     private final EmuService emuService = new RemoteEmuServiceImpl(Constants.PASS_SEARCH_URL);
 
     private String[] tmp = new String[6];
+
+    private static JTextField departmentTextField;
 
     public EMUSearchPanel() {
         initialize();
@@ -89,10 +95,10 @@ public class EMUSearchPanel extends JPanel {
         final JComboBox<String> plantComboBox = new JComboBox<>(new Vector<>(Lists.asList("全部", Utils.loadCfg("conf/emu-plant.cfg", ","))));
         plantComboBox.setFont(font);
         //动车所选择框
-        final JTextField departmentTextField = new JTextField(10);
+        departmentTextField = new JTextField(10);
         departmentTextField.setFont(font);
         JButton searchButton = new JButton("查询");
-        searchButton.setFont( new Font("黑体",Font.BOLD,25));
+        searchButton.setFont(new Font("黑体", Font.BOLD, 25));
         Insets insets = new Insets(3, 3, 3, 3);
         JButton clearCacheButton = new JButton("清理缓存");
         clearCacheButton.setFont(font);
@@ -118,7 +124,7 @@ public class EMUSearchPanel extends JPanel {
         panel.add(departmentLabel, new GBC(0, 2).setAnchor(GridBagConstraints.EAST).setInsets(insets));
         panel.add(departmentTextField, new GBC(1, 2).setFill(GridBagConstraints.BOTH).setInsets(insets));
         panel.add(searchButton, new GBC(4, 0, 1, 2).setInsets(0, 10, 0, 0).setFill(GridBagConstraints.BOTH));
-        panel.add(clearCacheButton,new GBC(4,2).setInsets(0, 10, 0, 0).setFill(GridBagConstraints.BOTH));
+        panel.add(clearCacheButton, new GBC(4, 2).setInsets(0, 10, 0, 0).setFill(GridBagConstraints.BOTH));
         searchButton.addActionListener(e -> {
             //check
             clearCacheButton.setEnabled(false);
@@ -140,12 +146,12 @@ public class EMUSearchPanel extends JPanel {
                 ((TitledBorder) ((JPanel) this.getComponent(1)).getBorder()).setTitle("查询结果共" + resultTable.getRowCount() + "条");
                 resultTable.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
                 this.updateUI();
-            }finally {
+            } finally {
                 clearCacheButton.setEnabled(true);
             }
         });
 
-        clearCacheButton.addActionListener(e->{
+        clearCacheButton.addActionListener(e -> {
             int confirm = JOptionPane.showConfirmDialog(this, "确认要清理缓存吗？", "警告", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
             if (confirm == JOptionPane.OK_OPTION) {
                 this.emuService.clearCache();
@@ -161,12 +167,40 @@ public class EMUSearchPanel extends JPanel {
         panel.setBorder(BorderFactory.createTitledBorder("查询结果"));
 
         //用于展示查询结果的表格
-        resultTable = new JTable(
-                //初始表格
-                new DefaultTableModel(Constants.RESULT_TABLE_COLUMN_NAME, 0)
-        );
+        resultTable = new JTable(new DefaultTableModel(Constants.RESULT_TABLE_COLUMN_NAME, 0)) {
+            @Override
+            public String getToolTipText(MouseEvent e) {
+                java.awt.Point p = e.getPoint();
+                int rowIndex = rowAtPoint(p);
+                int colIndex = columnAtPoint(p);
+                TableModel model = getModel();
+                return (String) model.getValueAt(rowIndex, colIndex);
+            }
+
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
         Font font = new Font("Microsoft YaHei", Font.PLAIN, 12);
         resultTable.setFont(font);
+        resultTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    java.awt.Point p = e.getPoint();
+                    int rowIndex = resultTable.rowAtPoint(p);
+                    int colIndex = resultTable.columnAtPoint(p);
+                    int realColIndex = resultTable.convertColumnIndexToModel(colIndex);
+                    if (realColIndex == 3) {
+                        Object val = resultTable.getValueAt(rowIndex, colIndex);
+                        if (departmentTextField != null) {
+                            departmentTextField.setText(String.valueOf(val));
+                        }
+                    }
+                }
+            }
+        });
         JTableHeader tableHeader = resultTable.getTableHeader();
         tableHeader.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Color.GRAY));
         TableHeaderUI ui = tableHeader.getUI();
