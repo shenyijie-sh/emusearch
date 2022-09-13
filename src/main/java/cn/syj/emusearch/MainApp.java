@@ -43,6 +43,7 @@ public class MainApp {
         frame.add(emuSearchPanel);
         frame.pack();
         frame.setLocationRelativeTo(null);
+        frame.setResizable(false);
     }
 
     public static void main(String[] args) {

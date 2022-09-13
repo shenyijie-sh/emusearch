@@ -13,7 +13,6 @@ import javax.swing.border.TitledBorder;
 import javax.swing.plaf.TableHeaderUI;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
-import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableModel;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
@@ -38,9 +37,7 @@ public class EMUSearchPanel extends JPanel {
 
     private final EmuService emuService = new RemoteEmuServiceImpl(Constants.PASS_SEARCH_URL);
 
-    private String[] tmp = new String[6];
-
-    private static JTextField departmentTextField;
+    private JTextField departmentTextField;
 
     public EMUSearchPanel() {
         initialize();
@@ -203,7 +200,6 @@ public class EMUSearchPanel extends JPanel {
         });
         JTableHeader tableHeader = resultTable.getTableHeader();
         tableHeader.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Color.GRAY));
-        TableHeaderUI ui = tableHeader.getUI();
         panel.add(new JScrollPane(resultTable));
 
         return panel;

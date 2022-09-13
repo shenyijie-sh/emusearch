@@ -67,7 +67,8 @@ public class RemoteEmuServiceImpl implements EmuService {
         String type = null;
         //优先使用缓存
         for (String t : types) {
-            String key = String.format(PASS_SEARCH_PARAM_FORMAT, this.remoteServerUrl, t, keyword = conditionMap.get(t), 1);
+            if (null == (keyword = conditionMap.get(t))) continue;
+            String key = this.genKey(t, keyword, 1);
             if (null != cache.getIfPresent(key)) {
                 type = t;
                 break;
@@ -115,6 +116,10 @@ public class RemoteEmuServiceImpl implements EmuService {
         }
     }
 
+    private String genKey(String type, Object keyword, int page) {
+        return String.format("__%s_%s_%d__", type, keyword, page);
+    }
+
     /**
      * 远程加载{@link DetailPage}
      *
@@ -125,7 +130,7 @@ public class RemoteEmuServiceImpl implements EmuService {
      * @throws IOException IO异常
      */
     private DetailPage remoteLoadAndParse(String type, Object keyword, int page) throws IOException {
-        String key = String.format("__%s_%s_%d__", type, keyword, page);
+        String key = this.genKey(type, keyword, page);
         DetailPage p = cache.getIfPresent(key);
         if (null == p) {
             System.out.println("正在远程加载第" + page + "页");
